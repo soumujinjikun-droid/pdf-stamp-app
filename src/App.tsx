@@ -647,6 +647,178 @@ export default function App() {
     setActiveTemplateId(newId);
   };
 
+  const handleExportJSON = () => {
+    try {
+      const customTemplatesJSON = localStorage.getItem('pdf_stamp_custom_templates') || '[]';
+      const customSetsJSON = localStorage.getItem('pdf_stamp_custom_sets') || '[]';
+      const templateOrderJSON = localStorage.getItem('pdf_stamp_template_order') || '[]';
+      const setOrderJSON = localStorage.getItem('pdf_stamp_set_order') || '[]';
+      const favoritesJSON = localStorage.getItem('pdf_stamp_favorites') || '[]';
+
+      const backupObj = {
+        generator: 'pdf-stamper-pro',
+        exportedAt: new Date().toISOString(),
+        customTemplates: JSON.parse(customTemplatesJSON),
+        customStampSets: JSON.parse(customSetsJSON),
+        templateOrder: JSON.parse(templateOrderJSON),
+        setOrder: JSON.parse(setOrderJSON),
+        favorites: JSON.parse(favoritesJSON)
+      };
+
+      const blob = new Blob([JSON.stringify(backupObj, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `pdf_stamps_backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error('Failed to export JSON template backup:', err);
+      alert('エクスポートに失敗しました。');
+    }
+  };
+
+  const handleImportJSON = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result;
+        if (typeof text !== 'string') {
+          throw new Error('ファイルを読み込めませんでした。');
+        }
+
+        const json = JSON.parse(text);
+
+        // Accept our rich format or a raw array
+        let importedTemplates: StampTemplate[] = [];
+        let importedSets: StampSetTemplate[] = [];
+        let importedTemplateOrder: string[] = [];
+        let importedSetOrder: string[] = [];
+        let importedFavorites: string[] = [];
+
+        if (json && (json.customTemplates || json.customStampSets)) {
+          importedTemplates = Array.isArray(json.customTemplates) ? json.customTemplates : [];
+          importedSets = Array.isArray(json.customStampSets) ? json.customStampSets : [];
+          importedTemplateOrder = Array.isArray(json.templateOrder) ? json.templateOrder : [];
+          importedSetOrder = Array.isArray(json.setOrder) ? json.setOrder : [];
+          importedFavorites = Array.isArray(json.favorites) ? json.favorites : [];
+        } else if (Array.isArray(json)) {
+          if (json.length > 0 && ('type' in json[0]) && ('textColor' in json[0])) {
+            importedTemplates = json;
+          } else {
+            throw new Error('JSONの形式が正しくありません。スタンプテンプレートの配列である必要があります。');
+          }
+        } else {
+          throw new Error('無効なJSONファイルフォーマットです。');
+        }
+
+        // 1. Merge templates
+        const localCustomJSON = localStorage.getItem('pdf_stamp_custom_templates') || '[]';
+        let currentCustom: StampTemplate[] = [];
+        try { currentCustom = JSON.parse(localCustomJSON); } catch (_) {}
+
+        const sanitizedImportedTemplates = importedTemplates.map(t => ({
+          ...t,
+          isBuiltIn: false
+        }));
+
+        const finalCustomTemplates = [...currentCustom];
+        sanitizedImportedTemplates.forEach(t => {
+          const idx = finalCustomTemplates.findIndex(item => item.id === t.id);
+          if (idx !== -1) {
+            finalCustomTemplates[idx] = t;
+          } else {
+            finalCustomTemplates.push(t);
+          }
+        });
+
+        // 2. Merge Sets
+        const localCustomSetsJSON = localStorage.getItem('pdf_stamp_custom_sets') || '[]';
+        let currentCustomSets: StampSetTemplate[] = [];
+        try { currentCustomSets = JSON.parse(localCustomSetsJSON); } catch (_) {}
+
+        const sanitizedImportedSets = importedSets.map(s => ({
+          ...s,
+          isBuiltIn: false
+        }));
+
+        const finalCustomSets = [...currentCustomSets];
+        sanitizedImportedSets.forEach(s => {
+          const idx = finalCustomSets.findIndex(item => item.id === s.id);
+          if (idx !== -1) {
+            finalCustomSets[idx] = s;
+          } else {
+            finalCustomSets.push(s);
+          }
+        });
+
+        // Save custom structures back to localStorage
+        localStorage.setItem('pdf_stamp_custom_templates', JSON.stringify(finalCustomTemplates));
+        localStorage.setItem('pdf_stamp_custom_sets', JSON.stringify(finalCustomSets));
+
+        // 3. Process favorites
+        let currentFavs: string[] = [];
+        try { currentFavs = JSON.parse(localStorage.getItem('pdf_stamp_favorites') || '[]'); } catch (_) {}
+        const combinedFavs = Array.from(new Set([...currentFavs, ...importedFavorites]));
+        localStorage.setItem('pdf_stamp_favorites', JSON.stringify(combinedFavs));
+
+        // 4. Process orders
+        let currentTplOrder: string[] = [];
+        try { currentTplOrder = JSON.parse(localStorage.getItem('pdf_stamp_template_order') || '[]'); } catch (_) {}
+        const combinedTplOrder = Array.from(new Set([...currentTplOrder, ...importedTemplateOrder]));
+        if (combinedTplOrder.length > 0) {
+          localStorage.setItem('pdf_stamp_template_order', JSON.stringify(combinedTplOrder));
+        }
+
+        let currentSetOrder: string[] = [];
+        try { currentSetOrder = JSON.parse(localStorage.getItem('pdf_stamp_set_order') || '[]'); } catch (_) {}
+        const combinedSetOrder = Array.from(new Set([...currentSetOrder, ...importedSetOrder]));
+        if (combinedSetOrder.length > 0) {
+          localStorage.setItem('pdf_stamp_set_order', JSON.stringify(combinedSetOrder));
+        }
+
+        // Apply back to React states
+        const builtIn = createDefaultTemplates();
+        const mergedTemplates = [...builtIn, ...finalCustomTemplates].map(t => ({
+          ...t,
+          isFavorite: combinedFavs.includes(t.id)
+        }));
+
+        const templateOrderToUse = combinedTplOrder.length > 0 ? combinedTplOrder : mergedTemplates.map(t => t.id);
+        mergedTemplates.sort((a, b) => {
+          const idxA = templateOrderToUse.indexOf(a.id);
+          const idxB = templateOrderToUse.indexOf(b.id);
+          if (idxA === -1 && idxB === -1) return 0;
+          if (idxA === -1) return 1;
+          if (idxB === -1) return -1;
+          return idxA - idxB;
+        });
+        setTemplates(mergedTemplates);
+
+        const builtInSets = createDefaultStampSets();
+        const mergedSets = [...builtInSets, ...finalCustomSets];
+        const setOrderToUse = combinedSetOrder.length > 0 ? combinedSetOrder : mergedSets.map(s => s.id);
+        mergedSets.sort((a, b) => {
+          const idxA = setOrderToUse.indexOf(a.id);
+          const idxB = setOrderToUse.indexOf(b.id);
+          if (idxA === -1 && idxB === -1) return 0;
+          if (idxA === -1) return 1;
+          if (idxB === -1) return -1;
+          return idxA - idxB;
+        });
+        setStampSets(mergedSets);
+
+        alert(`インポートに成功しました！\n（スタンプ：${sanitizedImportedTemplates.length}個、一括配置セット：${sanitizedImportedSets.length}個を読み込みました）`);
+      } catch (err: any) {
+        console.error('Failed to parse & merge JSON backup file:', err);
+        alert(`インポートできませんでした。ファイルのフォーマットが正しくありません：\n${err?.message || err}`);
+      }
+    };
+    reader.readAsText(file);
+  };
+
   // Undo triggers
   const handleUndo = () => {
     if (!activeFileId) return;
@@ -858,6 +1030,8 @@ export default function App() {
           onUndo={handleUndo}
           onRedo={handleRedo}
           hasFile={!!activeFileId}
+          onExportJSON={handleExportJSON}
+          onImportJSON={handleImportJSON}
         />
 
       </div>

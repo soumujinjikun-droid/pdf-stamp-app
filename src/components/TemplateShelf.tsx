@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Star, Plus, Settings, History, Settings2, HelpCircle, Check, Download, Layers, Globe, Save, Layers2, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Star, Plus, Settings, History, Settings2, HelpCircle, Check, Download, Upload, Database, Layers, Globe, Save, Layers2, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { StampTemplate, StampingMode, StampSetTemplate } from '../types';
 import { renderStampToDataUrl } from '../utils/canvasRenderer';
 
@@ -12,6 +12,8 @@ interface TemplateShelfProps {
   onTriggerCreate: () => void;
   onDeleteTemplate: (id: string) => void;
   onReorderTemplates?: (templates: StampTemplate[]) => void;
+  onExportJSON: () => void;
+  onImportJSON: (file: File) => void;
   
   // Stamp Sets Layout presets
   stampSets: StampSetTemplate[];
@@ -74,7 +76,9 @@ export default function TemplateShelf({
   canRedo,
   onUndo,
   onRedo,
-  hasFile
+  hasFile,
+  onExportJSON,
+  onImportJSON
 }: TemplateShelfProps) {
   const [stampPreviewUrls, setStampPreviewUrls] = useState<{ [id: string]: string }>({});
   const [activeTab, setActiveTab] = useState<'single' | 'set'>('single');
@@ -87,6 +91,7 @@ export default function TemplateShelf({
   const [isModeOpen, setIsModeOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(true);
   const [isBulkOpen, setIsBulkOpen] = useState(true);
+  const [isBackupOpen, setIsBackupOpen] = useState(false);
 
   // Inline Click Confirms (安全なインライン2重確認ステート。window.confirm の Iframe ブロックを完全回避)
   const [confirmClear, setConfirmClear] = useState(false);
@@ -610,14 +615,14 @@ export default function TemplateShelf({
                       className={`group border cursor-grab active:cursor-grabbing p-3 rounded-xl shadow-xs hover:shadow-md transition-all flex flex-col justify-between ${
                         isDragged
                           ? 'opacity-30 border-dashed border-blue-400 bg-slate-50 shadow-none'
-                          : 'border-slate-150 hover:border-rose-350 bg-white'
+                          : 'border-slate-150 hover:border-blue-350 bg-white'
                       } ${
                         isDragOver ? 'scale-[1.02] border-blue-500 bg-blue-50/10 shadow-sm' : ''
                       }`}
                     >
                       <div className="flex items-start justify-between gap-1.5">
                         <div className="space-y-1 flex-1 min-w-0">
-                          <span className="text-xs font-bold text-slate-750 block truncate group-hover:text-rose-600 transition-colors font-sans">
+                          <span className="text-xs font-bold text-slate-750 block truncate group-hover:text-blue-600 transition-colors font-sans">
                             {set.name}
                           </span>
                           
@@ -906,6 +911,60 @@ export default function TemplateShelf({
               >
                 {confirmClear ? "⚠️ 本当にすべての押印をクリアしますか？" : "現在のファイルの押印をすべてクリア"}
               </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Accordion Wrapper around Backup & Restore */}
+      <div className="border-b border-slate-150 select-none bg-slate-50/5 shrink-0">
+        <button
+          type="button"
+          onClick={() => setIsBackupOpen(!isBackupOpen)}
+          className="w-full px-5 py-2.5 hover:bg-slate-50 flex items-center justify-between text-xs font-bold text-slate-500 font-display transition-colors"
+        >
+          <span className="flex items-center gap-1.5">
+            <Database className="w-3.5 h-3.5 text-blue-500" />
+            テンプレート入出力 (JSON)
+          </span>
+          {isBackupOpen ? <ChevronUp className="w-3.5 h-3.5 text-slate-450" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-450" />}
+        </button>
+
+        {isBackupOpen && (
+          <div className="p-4 pt-0 pb-4 space-y-3 shrink-0">
+            <p className="text-[10px] text-slate-400 leading-relaxed font-sans">
+              作成したカスタムスタンプテンプレートや一括スタンプセットをJSONファイルとして保存・復元できます。
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={onExportJSON}
+                className="py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-650 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs font-sans"
+                title="ローカルにカスタムテンプレートとセットをバックアップします。"
+              >
+                <Download className="w-3.5 h-3.5 text-blue-500" />
+                エクスポート
+              </button>
+
+              <label
+                className="py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-650 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs text-center font-sans"
+                title="バックアップしたJSONファイルを読み込みます。"
+              >
+                <Upload className="w-3.5 h-3.5 text-emerald-500" />
+                インポート
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      onImportJSON(file);
+                      e.target.value = '';
+                    }
+                  }}
+                  className="hidden"
+                />
+              </label>
             </div>
           </div>
         )}
