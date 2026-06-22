@@ -54,6 +54,7 @@ export interface PDFDocumentFile {
   placedElements: PlacedElement[];
   thumbnailPageUrls: string[]; // dynamic base64 page thumbnail previews
   pageDimensions: { width: number; height: number }[]; // array of {width, height} in PDF points (72 points/inch)
+  pageRotations?: { [pageNumber: number]: number }; // angle: 0, 90, 180, 270 degrees
   history: {
     past: PlacedElement[][];
     future: PlacedElement[][];

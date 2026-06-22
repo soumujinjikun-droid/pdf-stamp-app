@@ -397,6 +397,76 @@ export default function App() {
     });
   };
 
+  const handleRotateActivePage = (deg: number) => {
+    if (!activeFileId || !activeFile) return;
+
+    setFiles(prevFiles => {
+      return prevFiles.map(file => {
+        if (file.id !== activeFileId) return file;
+
+        const originalPageDim = file.pageDimensions[activePageNumber - 1] || { width: 595, height: 842 };
+        const currentRotations = file.pageRotations || {};
+        const currentPageRot = currentRotations[activePageNumber] || 0;
+        
+        // Calculate new rotation
+        const newPageRot = (currentPageRot + deg + 360) % 360;
+        const nextRotations = { ...currentRotations, [activePageNumber]: newPageRot };
+
+        // Visual page dimensions BEFORE this rotation step
+        const isCurrentlySwapped = (currentPageRot === 90 || currentPageRot === 270);
+        const w_vis = isCurrentlySwapped ? originalPageDim.height : originalPageDim.width;
+        const h_vis = isCurrentlySwapped ? originalPageDim.width : originalPageDim.height;
+
+        // Snapshot history for undo/redo
+        const newPast = [...file.history.past, file.placedElements];
+
+        // Transform elements on the active page
+        const transformedElements = file.placedElements.map(el => {
+          if (el.pageNumber !== activePageNumber) return el;
+
+          const w_pct = (el.width / w_vis) * 100;
+          const h_pct = (el.height / h_vis) * 100;
+
+          let newX = el.x;
+          let newY = el.y;
+          let newRotation = el.rotation;
+
+          if (deg === 90) { // Clockwise
+            newX = 100 - el.y - h_pct;
+            newY = el.x;
+            newRotation = (el.rotation + 90) % 360;
+          } else if (deg === -90) { // Counter-Clockwise
+            newX = el.y;
+            newY = 100 - el.x - w_pct;
+            newRotation = (el.rotation + 270) % 360;
+          }
+
+          const next_w_vis = (newPageRot === 90 || newPageRot === 270) ? originalPageDim.height : originalPageDim.width;
+          const next_h_vis = (newPageRot === 90 || newPageRot === 270) ? originalPageDim.width : originalPageDim.height;
+          const new_w_pct = (el.width / next_w_vis) * 100;
+          const new_h_pct = (el.height / next_h_vis) * 100;
+
+          return {
+            ...el,
+            x: Math.max(0, Math.min(100 - new_w_pct, newX)),
+            y: Math.max(0, Math.min(100 - new_h_pct, newY)),
+            rotation: newRotation,
+          };
+        });
+
+        return {
+          ...file,
+          pageRotations: nextRotations,
+          placedElements: transformedElements,
+          history: {
+            past: newPast,
+            future: []
+          }
+        };
+      });
+    });
+  };
+
   // Micro power feature: Stamping current stamp onto ALL pages of active PDF
   const handleApplyAllPages = () => {
     if (!activeFile || !activeTemplateId) return;
@@ -971,6 +1041,7 @@ export default function App() {
           onRemoveElement={handleRemoveElement}
           onBulkStampAllPages={handleApplyAllPages}
           stampingMode={stampingMode}
+          onRotateActivePage={handleRotateActivePage}
         />
 
         {/* Resizable Divider Border (ドラッグで可変できる境界線) */}

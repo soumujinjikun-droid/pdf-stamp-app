@@ -71,6 +71,7 @@ export async function renderPdfPageToCanvas(
   pageNumber: number,
   canvas: HTMLCanvasElement,
   scale: number = 1.5,
+  rotationAngle: number = 0,
   onRenderTask?: (renderTask: any) => void
 ): Promise<{ width: number; height: number }> {
   const pdfjsLib = await loadPdfJS();
@@ -78,7 +79,8 @@ export async function renderPdfPageToCanvas(
   const pdfDoc = await loadingTask.promise;
   const page = await pdfDoc.getPage(pageNumber);
   
-  const viewport = page.getViewport({ scale });
+  const currentRotation = ((page.rotate || 0) + rotationAngle) % 360;
+  const viewport = page.getViewport({ scale, rotation: currentRotation });
   canvas.width = viewport.width;
   canvas.height = viewport.height;
   

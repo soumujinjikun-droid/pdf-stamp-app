@@ -40,10 +40,19 @@ export async function stampPdfDocument(
   
   // Iterate through pages and stamp elements
   for (let pageIdx = 0; pageIdx < pages.length; pageIdx++) {
+    const page = pages[pageIdx];
+    
+    // Apply user-specified rotation first if any
+    const userRotation = file.pageRotations?.[pageIdx + 1] || 0;
+    if (userRotation !== 0) {
+      const originalRot = page.getRotation().angle;
+      const finalRot = (originalRot + userRotation) % 360;
+      page.setRotation(degrees(finalRot));
+    }
+
     const pageElements = elementsByPage[pageIdx];
     if (!pageElements || pageElements.length === 0) continue;
     
-    const page = pages[pageIdx];
     const { width: pageWidth, height: pageHeight } = page.getSize();
     
     for (const el of pageElements) {

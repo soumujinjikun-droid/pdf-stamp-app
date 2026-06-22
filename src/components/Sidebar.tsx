@@ -163,12 +163,17 @@ export default function Sidebar({
                       : 'border-slate-200 group-hover:border-slate-350'
                   }`}>
                     {thumbUrl ? (
-                      <img 
-                        src={thumbUrl} 
-                        alt={`Page ${pageNum}`} 
-                        className="w-full h-auto object-cover max-h-36 block select-none pointer-events-none"
-                        referrerPolicy="no-referrer"
-                      />
+                      <div className="w-28 h-24 overflow-hidden flex items-center justify-center bg-slate-50/50 select-none">
+                        <img 
+                          src={thumbUrl} 
+                          alt={`Page ${pageNum}`} 
+                          className="max-w-full max-h-full object-contain block select-none pointer-events-none transition-transform duration-200"
+                          style={{
+                            transform: `rotate(${activeFile.pageRotations?.[pageNum] || 0}deg)`
+                          }}
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
                     ) : (
                       <div className="w-24 h-32 flex items-center justify-center bg-slate-100 text-slate-400">
                         <AlertCircle className="w-4 h-4" />

@@ -25,6 +25,7 @@ interface DocumentWorkspaceProps {
   // Power Actions
   onBulkStampAllPages: (element: PlacedElement) => void;
   stampingMode: StampingMode;
+  onRotateActivePage: (deg: number) => void;
 }
 
 export default function DocumentWorkspace({
@@ -40,7 +41,8 @@ export default function DocumentWorkspace({
   onUpdateElement,
   onRemoveElement,
   onBulkStampAllPages,
-  stampingMode
+  stampingMode,
+  onRotateActivePage
 }: DocumentWorkspaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -109,6 +111,7 @@ export default function DocumentWorkspace({
           targetPage,
           canvasRef.current!,
           zoom,
+          file.pageRotations?.[targetPage] || 0,
           (renderTask) => {
             if (active) {
               currentRenderTaskRef.current = renderTask;
@@ -165,11 +168,17 @@ export default function DocumentWorkspace({
     };
   }, [selectedElementId]);
 
+  const currentPageRot = file?.pageRotations?.[activePageNumber] || 0;
+  const isRotated90or270 = currentPageRot === 90 || currentPageRot === 270;
   const originalPageDim = file?.pageDimensions[activePageNumber - 1] || { width: 595, height: 842 };
 
+  const visualPageDim = isRotated90or270 
+    ? { width: originalPageDim.height, height: originalPageDim.width }
+    : { width: originalPageDim.width, height: originalPageDim.height };
+
   // Calculate rendering viewport scale factor
-  // Points (e.g. 595 pt width) map directly to visual pixels (e.g. canvasLayout.width)
-  const scaleFactor = originalPageDim.width > 0 ? (canvasLayout.width / originalPageDim.width) : 1;
+  // Points map directly to visual pixels (e.g. canvasLayout.width)
+  const scaleFactor = visualPageDim.width > 0 ? (canvasLayout.width / visualPageDim.width) : 1;
 
   // Handle stamping onto the PDF on Click
   const handlePdfClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -187,8 +196,8 @@ export default function DocumentWorkspace({
     let pctY = (clickY / bounds.height) * 100;
 
     // Center stamp on cursor coordinates (offset by half size)
-    const stampWidthPercent = (activeTemplateWidth / originalPageDim.width) * 100;
-    const stampHeightPercent = (activeTemplateHeight / originalPageDim.height) * 100;
+    const stampWidthPercent = (activeTemplateWidth / visualPageDim.width) * 100;
+    const stampHeightPercent = (activeTemplateHeight / visualPageDim.height) * 100;
     pctX -= stampWidthPercent / 2;
     pctY -= stampHeightPercent / 2;
 
@@ -291,8 +300,8 @@ export default function DocumentWorkspace({
         let targetY = draggingState.startElementY + deltaPctY;
 
         // Snapping boundary check
-        const widthPct = (el.width / originalPageDim.width) * 100;
-        const heightPct = (el.height / originalPageDim.height) * 100;
+        const widthPct = (el.width / visualPageDim.width) * 100;
+        const heightPct = (el.height / visualPageDim.height) * 100;
         
         targetX = Math.max(0, Math.min(100 - widthPct, targetX));
         targetY = Math.max(0, Math.min(100 - heightPct, targetY));
@@ -354,7 +363,7 @@ export default function DocumentWorkspace({
       window.removeEventListener('mousemove', handleGlobalMouseMove);
       window.removeEventListener('mouseup', handleGlobalMouseUp);
     };
-  }, [draggingState, isSnapEnabled, originalPageDim, scaleFactor]);
+  }, [draggingState, isSnapEnabled, visualPageDim, scaleFactor]);
 
   // Position alignment presets
   const applyPresetPosition = (preset: 'bottom_right' | 'top_right' | 'bottom_left' | 'center') => {
@@ -362,8 +371,8 @@ export default function DocumentWorkspace({
     const el = file?.placedElements.find(item => item.id === selectedElementId);
     if (!el) return;
 
-    const widthPct = (el.width / originalPageDim.width) * 100;
-    const heightPct = (el.height / originalPageDim.height) * 100;
+    const widthPct = (el.width / visualPageDim.width) * 100;
+    const heightPct = (el.height / visualPageDim.height) * 100;
 
     let testX = 50;
     let testY = 50;
@@ -443,6 +452,27 @@ export default function DocumentWorkspace({
                 次へ
               </button>
             </div>
+          </div>
+
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => onRotateActivePage(-90)}
+              className="hover:bg-white text-slate-650 p-1 px-2 rounded-lg text-[11px] font-bold shadow-xs flex items-center gap-1 cursor-pointer bg-transparent border-none transition-all"
+              title="左に90度回転"
+            >
+              <RotateCw className="w-3.5 h-3.5 transform -scale-x-100" />
+              左90°
+            </button>
+            <button
+              type="button"
+              onClick={() => onRotateActivePage(90)}
+              className="hover:bg-white text-slate-650 p-1 px-2 rounded-lg text-[11px] font-bold shadow-xs flex items-center gap-1 cursor-pointer bg-transparent border-none transition-all"
+              title="右に90度回転"
+            >
+              <RotateCw className="w-3.5 h-3.5" />
+              右90°
+            </button>
           </div>
 
           <div className="flex items-center gap-1.5 border-l border-slate-200 pl-4">
@@ -563,12 +593,12 @@ export default function DocumentWorkspace({
                 {/* Horizontal Guide line from selected element */}
                 <div 
                   className="absolute w-full border-t border-dashed border-slate-400/40 opacity-70"
-                  style={{ top: `${selectedElement.y + (selectedElement.height / originalPageDim.height * 100) / 2}%` }}
+                  style={{ top: `${selectedElement.y + (selectedElement.height / visualPageDim.height * 100) / 2}%` }}
                 />
                 {/* Vertical Guide line from selected element */}
                 <div 
                   className="absolute h-full border-l border-dashed border-slate-400/40 opacity-70"
-                  style={{ left: `${selectedElement.x + (selectedElement.width / originalPageDim.width * 100) / 2}%` }}
+                  style={{ left: `${selectedElement.x + (selectedElement.width / visualPageDim.width * 100) / 2}%` }}
                 />
               </div>
             )}
