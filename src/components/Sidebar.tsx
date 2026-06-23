@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { FileUp, FileText, ChevronRight, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { PDFDocumentFile } from '../types';
 
@@ -8,6 +8,7 @@ interface SidebarProps {
   activePageNumber: number;
   onSelectFile: (id: string) => void;
   onRemoveFile: (id: string) => void;
+  onClearAllFiles: () => void;
   onSelectPage: (pageNum: number) => void;
   onFilesUpload: (uploadedFiles: FileList) => void;
   isLoading: boolean;
@@ -20,12 +21,14 @@ export default function Sidebar({
   activePageNumber,
   onSelectFile,
   onRemoveFile,
+  onClearAllFiles,
   onSelectPage,
   onFilesUpload,
   isLoading,
   loadingStatus
 }: SidebarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   
   const activeFile = files.find((f) => f.id === activeFileId);
   const handleDragOver = (e: React.DragEvent) => {
@@ -83,9 +86,45 @@ export default function Sidebar({
 
       {/* Loaded Files Row */}
       <div className="p-4 border-b border-slate-150">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-bold text-slate-500 font-display">読み込んだPDF ({files.length})</span>
-        </div>
+        {showClearConfirm ? (
+          <div className="flex flex-col gap-1.5 bg-red-50 p-2.5 rounded-xl border border-red-200 mb-2">
+            <span className="text-[10px] font-bold text-red-700 leading-tight">本当にすべてのPDFを削除して初期化しますか？</span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onClearAllFiles();
+                  setShowClearConfirm(false);
+                }}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold text-[10px] py-1 rounded-lg text-center cursor-pointer shadow-xs transition-colors"
+              >
+                はい (消去)
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowClearConfirm(false)}
+                className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-550 font-bold text-[10px] py-1 px-2.5 rounded-lg text-center cursor-pointer transition-colors"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-500 font-display">読み込んだPDF ({files.length})</span>
+            {files.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowClearConfirm(true)}
+                className="text-[10px] font-bold text-red-500 hover:text-red-700 flex items-center gap-1 transition-colors px-1 cursor-pointer"
+                title="すべてのPDFを削除して初期化します"
+              >
+                <Trash2 className="w-3 h-3" />
+                一括クリア
+              </button>
+            )}
+          </div>
+        )}
         
         {files.length === 0 ? (
           <div className="text-center py-4 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 p-3 flex flex-col items-center">

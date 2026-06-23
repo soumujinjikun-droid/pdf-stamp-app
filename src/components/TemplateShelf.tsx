@@ -356,8 +356,11 @@ export default function TemplateShelf({
         </button>
       </div>
 
-      {/* Templates List */}
-      <div className="p-4 border-b border-slate-150 flex-1 overflow-y-auto min-h-[160px] space-y-4">
+      {/* Scrollable Container covering Templates list + All adjustments panels to keep Safe/Download button sticky bottom */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        
+        {/* Templates List */}
+        <div className="p-4 border-b border-slate-150 space-y-4">
         {activeTab === 'single' && (
           <>
             {/* Header template actions */}
@@ -968,6 +971,7 @@ export default function TemplateShelf({
             </div>
           </div>
         )}
+      </div>
       </div>
 
       {/* Compile Download Actions */}

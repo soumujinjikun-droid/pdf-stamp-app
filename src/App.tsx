@@ -15,6 +15,7 @@ import Sidebar from './components/Sidebar';
 import TemplateShelf from './components/TemplateShelf';
 import DocumentWorkspace from './components/DocumentWorkspace';
 import StampCreator from './components/StampCreator';
+import { savePdfToDb, getPdfsFromDb, deletePdfFromDb, clearAllPdfsFromDb } from './utils/pdfDb';
 
 export default function App() {
   // Draggable Shelf Width Control (可変幅)
@@ -47,6 +48,71 @@ export default function App() {
 
   // Stamp Sets (一括セット) collection
   const [stampSets, setStampSets] = useState<StampSetTemplate[]>([]);
+
+  // Load files from IndexedDB on mount
+  useEffect(() => {
+    const loadFilesFromDb = async () => {
+      try {
+        const savedFiles = await getPdfsFromDb();
+        if (savedFiles && savedFiles.length > 0) {
+          setFiles(savedFiles);
+          
+          // Try to recover active file ID from localStorage if exists
+          const savedActiveFileId = localStorage.getItem('pdf_stamp_active_file_id');
+          if (savedActiveFileId && savedFiles.some(f => f.id === savedActiveFileId)) {
+            setActiveFileId(savedActiveFileId);
+            const savedPageNumberStr = localStorage.getItem('pdf_stamp_active_page_number');
+            if (savedPageNumberStr) {
+              const pNum = parseInt(savedPageNumberStr, 10);
+              const targetFile = savedFiles.find(f => f.id === savedActiveFileId);
+              if (targetFile && pNum >= 1 && pNum <= targetFile.thumbnailPageUrls.length) {
+                setActivePageNumber(pNum);
+              } else {
+                setActivePageNumber(1);
+              }
+            } else {
+              setActivePageNumber(1);
+            }
+          } else {
+            setActiveFileId(savedFiles[0].id);
+            setActivePageNumber(1);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load files from IndexedDB on mount:', err);
+      }
+    };
+    loadFilesFromDb();
+  }, []);
+
+  // Synchronize activeFileId to LocalStorage
+  useEffect(() => {
+    if (activeFileId) {
+      localStorage.setItem('pdf_stamp_active_file_id', activeFileId);
+    } else {
+      localStorage.removeItem('pdf_stamp_active_file_id');
+    }
+  }, [activeFileId]);
+
+  // Synchronize activePageNumber to LocalStorage
+  useEffect(() => {
+    localStorage.setItem('pdf_stamp_active_page_number', String(activePageNumber));
+  }, [activePageNumber]);
+
+  // Synchronize files changes to IndexedDB with debounce
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      for (const file of files) {
+        try {
+          await savePdfToDb(file);
+        } catch (err) {
+          console.error(`Failed to save file ${file.id} to IndexedDB:`, err);
+        }
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [files]);
 
   // Load stamp sets from LocalStorage / Defaults on mount
   useEffect(() => {
@@ -273,6 +339,9 @@ export default function App() {
   // Delete PDF file from registry
   const handleRemoveFile = (fileId: string) => {
     setFiles(prev => prev.filter(f => f.id !== fileId));
+    deletePdfFromDb(fileId).catch(err => {
+      console.error('Failed to delete PDF from IndexedDB:', err);
+    });
     if (activeFileId === fileId) {
       const remaining = files.filter(f => f.id !== fileId);
       if (remaining.length > 0) {
@@ -283,6 +352,18 @@ export default function App() {
         setActivePageNumber(1);
       }
     }
+  };
+
+  // Clear all uploaded PDFs
+  const handleClearAllFiles = () => {
+    setFiles([]);
+    setActiveFileId(null);
+    setActivePageNumber(1);
+    localStorage.removeItem('pdf_stamp_active_file_id');
+    localStorage.removeItem('pdf_stamp_active_page_number');
+    clearAllPdfsFromDb().catch(err => {
+      console.error('Failed to clear PDFs from IndexedDB:', err);
+    });
   };
 
   // Active file details ref
@@ -1020,6 +1101,7 @@ export default function App() {
             setActivePageNumber(1);
           }}
           onRemoveFile={handleRemoveFile}
+          onClearAllFiles={handleClearAllFiles}
           onSelectPage={setActivePageNumber}
           onFilesUpload={handleFilesUpload}
           isLoading={isLoading}
