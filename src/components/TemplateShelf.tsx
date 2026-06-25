@@ -208,6 +208,13 @@ export default function TemplateShelf({
     setIsSavingCustom(false);
   }, [activeTemplateId, activeTemplate]);
 
+  // 一括スタンプセット表示中は、単品スタンプを非選択状態にする
+  useEffect(() => {
+    if (activeTab === 'set' && activeTemplateId !== null) {
+      onSelectTemplate(null);
+    }
+  }, [activeTab, activeTemplateId, onSelectTemplate]);
+
   // Render previews for loaded templates
   useEffect(() => {
     const previews: { [id: string]: string } = {};
@@ -344,7 +351,10 @@ export default function TemplateShelf({
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab('set')}
+          onClick={() => {
+            setActiveTab('set');
+            onSelectTemplate(null);
+          }}
           className={`flex-1 py-2.5 text-xs font-bold transition-all border-b-2 text-center flex items-center justify-center gap-1.5 cursor-pointer ${
             activeTab === 'set'
               ? 'border-blue-600 text-blue-600 bg-blue-50/5'
